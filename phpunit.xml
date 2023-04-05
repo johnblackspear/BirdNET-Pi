@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.0/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          cacheDirectory=".phpunit.cache"
          executionOrder="depends,defects"
          beStrictAboutOutputDuringTests="true"
@@ -18,4 +18,8 @@
             <directory suffix=".php">scripts</directory>
         </include>
     </coverage>
+
+    <php>
+        <env name="DB_FILE" value="scripts/test_birds.db"/>
+    </php>
 </phpunit>
