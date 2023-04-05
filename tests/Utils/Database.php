@@ -2,6 +2,7 @@
 
 namespace Tests\Utils;
 
+use Carbon\Carbon;
 use SQLite3;
 
 class Database
@@ -24,8 +25,26 @@ class Database
         return $this->db->exec('CREATE TABLE IF NOT EXISTS detections ( Date DATE, Time TIME, Sci_Name VARCHAR(100) NOT NULL, Com_Name VARCHAR(100) NOT NULL, Confidence FLOAT, Lat FLOAT, Lon FLOAT, Cutoff FLOAT, Week INT, Sens FLOAT, Overlap FLOAT, File_Name VARCHAR(100) NOT NULL)');
     }
 
+    public function addDetection(
+        Carbon $datetime = null,
+        string $scientificName = 'Otus senegalensis',
+        string $commonName = 'African Scops-Owl',
+        float $confidence = 0.87
+    )
+    {
+        if ($datetime == null) {
+            $datetime = Carbon::now();
+        }
 
-    public function seedTestData()
+        $this->insertDetectionRow($datetime, $scientificName, $commonName, $confidence);
+    }
+
+    private function insertDetectionRow(
+        Carbon $dateTime,
+        string $scientificName,
+        string $commonName,
+        float  $confidence
+    )
     {
         // `Date`, `Time`, Sci_Name, Com_Name, Confidence, Lat, Lon, Cutoff, Week, Sens, Overlap, File_Name
         $stmt = $this->db->prepare(
@@ -46,19 +65,28 @@ class Database
             ')'
         );
 
-        $stmt->bindValue(':detectionDate', date('Y-m-d'));
-        $stmt->bindValue(':detectionTime', date('H:i:s'));
-        $stmt->bindValue(':scientificName', 'Otus senegalensis');
-        $stmt->bindValue(':commonName', 'African Scops-Owl');
-        $stmt->bindValue(':confidence', 0.87094456);
+        $stmt->bindValue(':detectionDate', $dateTime->toDateString());
+        $stmt->bindValue(':detectionTime', $dateTime->toTimeString());
+        $stmt->bindValue(':scientificName', $scientificName);
+        $stmt->bindValue(':commonName', $commonName);
+        $stmt->bindValue(':confidence', $confidence);
         $stmt->bindValue(':latitude', -24.996);
         $stmt->bindValue(':longitude', 31.5919);
         $stmt->bindValue(':cutoff', 0.7);
-        $stmt->bindValue(':week', intval(date('W')));
+        $stmt->bindValue(':week', $dateTime->isoWeeksInYear());
         $stmt->bindValue(':sensitivity', 1.25);
         $stmt->bindValue(':overlap', 0);
-        $stmt->bindValue(':recordingFilename', 'African_Scops-Owl-87-2023-03-10-birdnet-18:14:17.mp3');
+        $stmt->bindValue(':recordingFilename', $this->recordingFileName($commonName, $confidence, $dateTime));
 
         $stmt->execute();
+    }
+
+    private function recordingFileName(string $commonName, $confidence, Carbon $dateTime): string
+    {
+        $date = $dateTime->toDateString();
+        $time = $dateTime->toTimeString();
+        $confidencePercent = round($confidence * 100,0);
+        return preg_replace('/\s+/', '_', $commonName) .
+            "-$confidencePercent-$date-birdnet-$time.mp3";
     }
 }
