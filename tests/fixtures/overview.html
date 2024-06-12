@@ -1,0 +1,277 @@
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overview</title>
+<style>
+body::-webkit-scrollbar {
+  display:none
+}
+</style>
+</head>
+<div class="overview">
+  <dialog id="attribution-dialog">
+    <h1 id="modalHeading"></h1>
+    <p id="modalText"></p>
+    <button onclick="hideDialog()">Close</button>
+  </dialog>
+  <script src="static/dialog-polyfill.js"></script>
+  <script src="static/Chart.bundle.js"></script>
+  <script src="static/chartjs-plugin-trendline.min.js"></script>
+  <script>
+  var dialog = document.querySelector('dialog');
+  dialogPolyfill.registerDialog(dialog);
+
+  function showDialog() {
+    document.getElementById('attribution-dialog').showModal();
+  }
+
+  function hideDialog() {
+    document.getElementById('attribution-dialog').close();
+  }
+
+  function setModalText(iter, title, text, authorlink, photolink) {
+    document.getElementById('modalHeading').innerHTML = "Photo: \""+decodeURIComponent(title.replaceAll("+"," "))+"\" Attribution";
+    document.getElementById('modalText').innerHTML = "<div><img style='border-radius:5px' src='"+photolink+"'></div><br><div>Image link: <a target='_blank' href="+text+">"+text+"</a><br>Author link: <a target='_blank' href="+authorlink+">"+authorlink+"</a></div>";
+    showDialog();
+  }
+  </script>
+<div class="overview-stats">
+<div class="left-column">
+</div>
+<div class="right-column">
+<div class="chart">
+</div>
+
+<div id="most_recent_detection"></div>
+<br>
+<h3>5 Most Recent Detections</h3>
+<div style="padding-bottom:10px;" id="detections_table"><h3>Loading...</h3></div>
+
+<h3>Currently Analyzing</h3>
+<img id="spectrogramimage" src="/spectrogram.png?nocache=1678998092">
+</div>
+</div>
+
+<script>
+// we're passing a unique ID of the currently displayed detection to our script, which checks the database to see if the newest detection entry is that ID, or not. If the IDs don't match, it must mean we have a new detection and it's loaded onto the page
+function loadDetectionIfNewExists(previous_detection_identifier=undefined) {
+  const xhttp = new XMLHttpRequest();
+  xhttp.onload = function() {
+    // if there's a new detection that needs to be updated to the page
+    if(this.responseText.length > 0 && !this.responseText.includes("Database is busy") && !this.responseText.includes("No Detections") || previous_detection_identifier == undefined) {
+      document.getElementById("most_recent_detection").innerHTML = this.responseText;
+
+      // only going to load left chart & 5 most recents if there's a new detection
+      loadLeftChart();
+      loadFiveMostRecentDetections();
+      refreshTopTen();
+    }
+  }
+  xhttp.open("GET", "overview.php?ajax_detections=true&previous_detection_identifier="+previous_detection_identifier, true);
+  xhttp.send();
+}
+function loadLeftChart() {
+  const xhttp = new XMLHttpRequest();
+  xhttp.onload = function() {
+    if(this.responseText.length > 0 && !this.responseText.includes("Database is busy")) {
+      document.getElementsByClassName("left-column")[0].innerHTML = this.responseText;
+    }
+  }
+  xhttp.open("GET", "overview.php?ajax_left_chart=true", true);
+  xhttp.send();
+}
+function refreshTopTen() {
+  const xhttp = new XMLHttpRequest();
+  xhttp.onload = function() {
+  if(this.responseText.length > 0 && !this.responseText.includes("Database is busy") && !this.responseText.includes("No Detections") || previous_detection_identifier == undefined) {
+    document.getElementById("chart").src = "/Charts/"+this.responseText+"?nocache="+Date.now();
+  }
+  }
+  xhttp.open("GET", "overview.php?fetch_chart_string=true", true);
+  xhttp.send();
+}
+window.setInterval(function(){
+  var videoelement = document.getElementsByTagName("video")[0];
+  if(typeof videoelement !== "undefined") {
+    // don't refresh the detection if the user is playing the previous one's audio, wait until they're finished
+    if(!!(videoelement.currentTime > 0 && !videoelement.paused && !videoelement.ended && videoelement.readyState > 2) == false) {
+      loadDetectionIfNewExists(videoelement.title);
+    }
+  } else{
+    // image or audio didn't load for some reason, force a refresh in 5 seconds
+    loadDetectionIfNewExists();
+  }
+}, 1*1000);
+
+function loadFiveMostRecentDetections() {
+  const xhttp = new XMLHttpRequest();
+  xhttp.onload = function() {
+    if(this.responseText.length > 0 && !this.responseText.includes("Database is busy")) {
+      document.getElementById("detections_table").innerHTML= this.responseText;
+    }
+  }
+  if (window.innerWidth > 500) {
+    xhttp.open("GET", "todays_detections.php?ajax_detections=true&display_limit=undefined&hard_limit=5", true);
+  } else {
+    xhttp.open("GET", "todays_detections.php?ajax_detections=true&display_limit=undefined&hard_limit=5&mobile=true", true);
+  }
+  xhttp.send();
+}
+window.addEventListener("load", function(){
+  loadDetectionIfNewExists();
+});
+
+// every $refresh seconds, this loop will run and refresh the spectrogram image
+window.setInterval(function(){
+  document.getElementById("spectrogramimage").src = "/spectrogram.png?nocache="+Date.now();
+}, *1000);
+</script>
+
+<style>
+  .tooltip {
+  background-color: white;
+  border: 1px solid #ccc;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  padding: 10px;
+  transition: opacity 0.2s ease-in-out;
+}
+</style>
+<script>
+function generateMiniGraph(elem, comname) {
+  // Make an AJAX call to fetch the number of detections for the bird species
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/todays_detections.php?comname=' + comname);
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      var detections = JSON.parse(xhr.responseText);
+
+      console.log(detections)
+
+      // Create a div element for the chart window
+      var chartWindow = document.createElement('div');
+      chartWindow.className = "chartdiv"
+      chartWindow.style.position = 'fixed';
+      chartWindow.style.top = '0%';
+      chartWindow.style.left = '50%';
+      chartWindow.style.width = window.innerWidth < 700 ? '40%' : '20%';
+      chartWindow.style.height = window.innerWidth < 700 ? '25%' : '16%';
+      chartWindow.style.backgroundColor = '#fff';
+      chartWindow.style.zIndex = '9999';
+      chartWindow.style.overflow = 'auto';
+      chartWindow.style.borderRadius = '5px';
+      chartWindow.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+
+      document.body.appendChild(chartWindow);
+
+
+            // Create a canvas element for the chart
+      var canvas = document.createElement('canvas');
+      canvas.width = chartWindow.offsetWidth;
+      canvas.height = chartWindow.offsetHeight;
+      chartWindow.appendChild(canvas);
+
+      // Create a new Chart.js chart
+      var ctx = canvas.getContext('2d');
+      var chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: detections.map(item => item.date),
+          datasets: [{
+            label: 'Detections',
+            data: detections.map(item => item.count),
+            backgroundColor: '#9fe29b',
+            borderColor: '#77c487',
+            borderWidth: 1,
+            lineTension: 0.3, // Add smoothing to the line
+            pointRadius: 1, // Make the data points smaller
+            pointHitRadius: 10, // Increase the area around data points for mouse events
+
+          trendlineLinear: {
+            style: "rgba(55, 99, 64, 0.5)",
+            lineStyle: "solid",
+            width: 1.5
+          }
+
+          }]
+        },
+        options: {
+          layout: {
+            padding: {
+              right: 10
+            }
+          },
+          title: {
+            display: true,
+            text: 'Detections Over 30d'
+          },
+          legend: {
+            display: false
+          },
+          scales: {
+            xAxes: [{
+              display: false,
+              gridLines: {
+                display: false // Hide the gridlines on the x-axis
+              },
+              ticks: {
+                autoSkip: true,
+                maxTicksLimit: 2
+              }
+            }],
+            yAxes: [{
+              gridLines: {
+                display: false // Hide the gridlines on the y-axis
+              },
+              ticks: {
+                beginAtZero: true,
+                precision: 0,
+                stepSize: 1
+              }
+            }]
+          }
+        }
+      });
+
+      var buttonRect = elem.getBoundingClientRect();
+      var chartRect = chartWindow.getBoundingClientRect();
+      if (window.innerWidth < 700) {
+        chartWindow.style.left = 'calc(75% - ' + (chartRect.width / 2) + 'px)';
+      } else {
+        chartWindow.style.left = (buttonRect.right + 10) + 'px';
+      }
+
+
+      // Calculate the top position of the chart to center it with the button
+      var buttonCenter = buttonRect.top + (buttonRect.height / 2);
+      var chartHeight = chartWindow.offsetHeight;
+      var chartTop = buttonCenter - (chartHeight / 2);
+      chartWindow.style.top = chartTop + 'px';
+
+      // Add a close button to the chart window
+      var closeButton = document.createElement('button');
+      closeButton.id = "chartcb";
+      closeButton.innerText = 'X';
+      closeButton.style.position = 'absolute';
+      closeButton.style.top = '5px';
+      closeButton.style.right = '5px';
+      closeButton.addEventListener('click', function() {
+        document.body.removeChild(chartWindow);
+      });
+      chartWindow.appendChild(closeButton);
+    }
+  };
+  xhr.send();
+}
+
+// Listen for the scroll event on the window object
+window.addEventListener('scroll', function() {
+  // Get all chart elements
+  var charts = document.querySelectorAll('.chartdiv');
+
+  // Loop through all chart elements and remove them
+  charts.forEach(function(chart) {
+    chart.parentNode.removeChild(chart);
+  });
+});
+
+</script>

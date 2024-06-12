@@ -1,4 +1,7 @@
 <?php
+namespace Birds;
+use SQLite3;
+
 error_reporting(E_ERROR);
 ini_set('display_errors',1);
 ini_set('session.gc_maxlifetime', 7200);
@@ -8,7 +11,7 @@ session_start();
 $myDate = date('Y-m-d');
 $chart = "Combo-$myDate.png";
 
-$db = new SQLite3('./scripts/birds.db', SQLITE3_OPEN_CREATE | SQLITE3_OPEN_READWRITE);
+$db = new SQLite3($_ENV['DB_FILE'], SQLITE3_OPEN_CREATE | SQLITE3_OPEN_READWRITE);
 if($db == False) {
   echo "Database is busy";
   header("refresh: 0;");
@@ -77,7 +80,7 @@ if(isset($_GET['fetch_chart_string']) && $_GET['fetch_chart_string'] == "true") 
   $myDate = date('Y-m-d');
   $chart = "Combo-$myDate.png";
   echo $chart;
-  die();
+  return;
 }
 
 if(isset($_GET['ajax_detections']) && $_GET['ajax_detections'] == "true" && isset($_GET['previous_detection_identifier'])) {
@@ -102,11 +105,11 @@ if(isset($_GET['ajax_detections']) && $_GET['ajax_detections'] == "true" && isse
     $filename = "/By_Date/".$mostrecent['Date']."/".$comname."/".$mostrecent['File_Name'];
     $args = "&license=2%2C3%2C4%2C5%2C6%2C9&orientation=square,portrait";
     $comnameprefix = "%20bird";
-    
+
       // check to make sure the image actually exists, sometimes it takes a minute to be created\
       if(file_exists($home."/BirdSongs/Extracted".$filename.".png")){
-          if($_GET['previous_detection_identifier'] == $filename) { die(); }
-          if($_GET['only_name'] == "true") { echo $comname.",".$filename;die(); }
+          if($_GET['previous_detection_identifier'] == $filename) { return; }
+          if($_GET['only_name'] == "true") { echo $comname.",".$filename;return; }
 
           $iterations++;
 
@@ -125,7 +128,7 @@ if(isset($_GET['ajax_detections']) && $_GET['ajax_detections'] == "true" && isse
             unset($_SESSION['images']);
           }
         }
-   
+
 
         // if we already searched flickr for this species before, use the previous image rather than doing an unneccesary api call
         $key = array_search($comname, array_column($_SESSION['images'], 0));
@@ -150,7 +153,7 @@ if(isset($_GET['ajax_detections']) && $_GET['ajax_detections'] == "true" && isse
             $lines = file($home."/BirdNET-Pi/model/labels_flickr.txt");
           }
           // convert sci name to English name
-          foreach($lines as $line){ 
+          foreach($lines as $line){
             if(strpos($line, $mostrecent['Sci_Name']) !== false){
               $engname = trim(explode("_", $line)[1]);
               break;
@@ -230,13 +233,13 @@ if(isset($_GET['ajax_detections']) && $_GET['ajax_detections'] == "true" && isse
       echo "<h3>No Detections For Today.</h3>";
     }
   }
-  die();
+  return;
 }
 
 if(isset($_GET['ajax_left_chart']) && $_GET['ajax_left_chart'] == "true") {
 
 $statement = $db->prepare('SELECT COUNT(*) FROM detections');
-if($statement == False) {
+if($statement === False) {
   echo "Database is busy";
   header("refresh: 0;");
 }
@@ -266,7 +269,7 @@ if($statement6 == False) {
 }
 $result6 = $statement6->execute();
 $totalspeciestally = $result6->fetchArray(SQLITE3_ASSOC);
-  
+
 ?>
 <table>
   <tr>
@@ -275,7 +278,7 @@ $totalspeciestally = $result6->fetchArray(SQLITE3_ASSOC);
   </tr>
   <tr>
     <th>Today</th>
-    
+
     <td><form action="" method="GET"><button type="submit" name="view" value="Today's Detections"><?php echo $todaycount['COUNT(*)'];?></button></td>
     </form>
   </tr>
@@ -295,7 +298,7 @@ $totalspeciestally = $result6->fetchArray(SQLITE3_ASSOC);
   </tr>
 </table>
 <?php
-die();
+return;
 }
 ?>
 <head>
@@ -353,7 +356,7 @@ body::-webkit-scrollbar {
     last_photo_link = text;
     showDialog();
   }
-  </script>  
+  </script>
 <div class="overview-stats">
 <div class="left-column">
 </div>
@@ -362,13 +365,13 @@ body::-webkit-scrollbar {
 <?php
 $refresh = $config['RECORDING_LENGTH'];
 $dividedrefresh = $refresh/4;
-if($dividedrefresh < 1) { 
+if($dividedrefresh < 1) {
   $dividedrefresh = 1;
 }
 $time = time();
 if (file_exists('./Charts/'.$chart)) {
   echo "<img id='chart' src=\"/Charts/$chart?nocache=$time\">";
-} 
+}
 ?>
 </div>
 
@@ -624,7 +627,7 @@ function generateMiniGraph(elem, comname) {
 window.addEventListener('scroll', function() {
   // Get all chart elements
   var charts = document.querySelectorAll('.chartdiv');
-  
+
   // Loop through all chart elements and remove them
   charts.forEach(function(chart) {
     chart.parentNode.removeChild(chart);
